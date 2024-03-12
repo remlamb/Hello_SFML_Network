@@ -10,10 +10,10 @@ set(HOST_NAME "localhost" CACHE STRING "Set the host name")
 add_definitions("-DPORT=${PORT}")
 add_definitions("-DHOST_NAME=\"${HOST_NAME}\"")
 
-find_package(SFML COMPONENTS system network graphics CONFIG REQUIRED)
+find_package(SFML COMPONENTS system window network graphics CONFIG REQUIRED)
 
 add_executable(client client.cpp)
 add_executable(server server.cpp)
 
-target_link_libraries(client PRIVATE sfml-system sfml-network sfml-graphics)
-target_link_libraries(server PRIVATE sfml-system sfml-network sfml-graphics)
+target_link_libraries(client PRIVATE sfml-system sfml-window sfml-network sfml-graphics)
+target_link_libraries(server PRIVATE sfml-system sfml-window sfml-network sfml-graphics)

@@ -3,7 +3,6 @@
 #include <SFML/Window.hpp>
 #include <iostream>
 #include <vector>
-
 #include "message.h"
 
 struct Font {
