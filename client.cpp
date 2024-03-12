@@ -1,8 +1,16 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Network.hpp>
 #include <iostream>
+#include <random>
 #include <vector>
+#include <array>
 #include "message.h"
+
+enum GameState {
+	SetSecretWord,
+	FindingWord,
+	WinOrLoose,
+};
 
 struct Font {
 	sf::Font font;
@@ -18,12 +26,14 @@ struct Font {
 	}
 };
 
-sf::Color green(0.0f, 255.0f, 102.0f);
-sf::Color orange(255, 175, 64);
+static sf::Color green(0.0f, 255.0f, 102.0f);
+static sf::Color orange(255, 175, 64);
+
 std::vector<sf::Text> messages;
-std::vector<std::string> messagess;
-sf::Vector2f firstMessagePosition(10.f, 10.f);
+std::vector<std::string> messagesHistory;
+sf::Vector2f firstMessagePosition(62.f, 48.f);
 float marginYText = 20.0f;
+
 sf::Vector2f GetNewPosition() {
 	return firstMessagePosition +
 		sf::Vector2f(0.0f, static_cast<float>(messages.size()) * marginYText);
@@ -32,6 +42,13 @@ sf::Vector2f GetNewPosition() {
 sf::Vector2f GetPositionStr(int i) {
 	return firstMessagePosition +
 		sf::Vector2f(0.0f, static_cast<float>(i) * marginYText);
+}
+
+int randomRange(int min, int max) {
+	std::random_device rd; 
+	std::mt19937 eng(rd()); 
+	std::uniform_int_distribution<> distr(min, max);
+	return distr(eng);
 }
 
 bool CompareString(std::string str1, std::string str2) {
@@ -46,48 +63,94 @@ bool CompareString(std::string str1, std::string str2) {
 	return true;
 }
 
-enum GameState {
-	SetSecretWord,
-	FindingWord,
-	WinOrLoose,
-};
+void ConnectToServer(sf::TcpSocket& socket)
+{
+	sf::Socket::Status status = socket.connect(HOST_NAME, PORT);
+	if (status != sf::Socket::Done) {
+		// error
+		std::cerr << "Could not connect to server ! \n";
+		//return EXIT_FAILURE;
+	}
+}
+void ReceiveRole(sf::TcpSocket& socket, bool& sender)
+{
+	sf::Packet packet;
+	if (socket.receive(packet) != sf::Socket::Done) {
+		std::cerr << "Failed to receive sender flag from server" << std::endl;
+		//return EXIT_FAILURE;
+	}
+	packet >> sender;
+	std::cout << "Received sender flag from server: " << std::boolalpha << sender
+		<< std::endl;
+}
+
+void CheckCurrentTry(std::string inputText, std::string secretWord, bool& isWordCorrect)
+{
+	std::cout << "Message Entered" << std::endl;
+	if (inputText == secretWord) {
+		std::cout << "Correct!" << std::endl;
+		isWordCorrect = true;
+		// current_state = GameState::WinOrLoose;
+	}
+	else {
+		std::cout << "Incorrect!" << std::endl;
+		std::cout << inputText + " - " + secretWord + "-"
+			<< std::endl;
+	}
+}
+
+void SendData(sf::TcpSocket& socket, std::string inputText, bool& isWordCorrect, bool& isWaitingForTurn)
+{
+	sf::Packet packetWithWord;
+	packetWithWord << inputText << isWordCorrect;
+	if (socket.send(packetWithWord) == sf::Socket::Done) {
+		std::cout << "Packet Send : " << inputText << std::endl;
+		isWaitingForTurn = true;
+	}
+}
+void SendSecretWord(sf::TcpSocket& socket, std::string& secretWord, GameState& current_state)
+{
+	std::cout << "enter Sending" << std::endl;
+	sf::Packet packet;
+	packet << secretWord;
+	if (socket.send(packet) == sf::Socket::Done) {
+		std::cout << "Packet Send" << std::endl;
+		current_state = GameState::FindingWord;
+	}
+	std::cout << "End " << std::endl;
+}
+
 
 int main() {
 	bool isWaitingForTurn = true;
 	bool isPlayerTurn = true;
 	bool isWordCorrect = false;
 	int currentTurn = 0;
+	bool sender;
 	std::string wordReceived;
 	sf::TcpSocket socket;
-	sf::Socket::Status status = socket.connect(HOST_NAME, PORT);
-	if (status != sf::Socket::Done) {
-		// error
-		std::cerr << "Could not connect to server ! \n";
-		return EXIT_FAILURE;
-	}
-
-	bool sender;
-	sf::Packet packet;
-	if (socket.receive(packet) != sf::Socket::Done) {
-		std::cerr << "Failed to receive sender flag from server" << std::endl;
-		return EXIT_FAILURE;
-	}
-	packet >> sender;
-	std::cout << "Received sender flag from server: " << std::boolalpha << sender
-		<< std::endl;
-
 	Font font(20);
 	GameState current_state = SetSecretWord;
+	std::string secretWord = "secret";
+	std::string inputText;
+	std::array<std::string, 6> randomWord = { "Oui", "Chien", "SFML_Classic", "Galaxy_", "rouge", "random"};
+
+	sf::Texture texturePC;
+	if (!texturePC.loadFromFile("../PCScreen.png")) {
+		std::cerr << "Failed Loading Texture\n";
+	}
+	sf::Sprite spritePC;
+	spritePC.setTexture(texturePC);
+
+	sf::Packet packet;
+	ConnectToServer(socket);
+	ReceiveRole(socket, sender);
+
 	sf::Text message_send_draw("", font.font, font.size);
 	bool isGuesser = false;
-
 	sf::Text text("", font.font, font.size);
 	message_send_draw.setPosition(firstMessagePosition);
 	text.setPosition(firstMessagePosition);
-
-	std::string secretWord = "secret";
-
-	std::string inputText;
 	text.setString("<< " + inputText);
 
 	auto window =
@@ -104,36 +167,24 @@ int main() {
 					if (current_state == GameState::FindingWord) {
 						if (!isWaitingForTurn) {
 							if (isGuesser) {
-								std::cout << "Message Entered" << std::endl;
-								if (inputText == secretWord) {
-									std::cout << "Correct!" << std::endl;
-									isWordCorrect = true;
-									// current_state = GameState::WinOrLoose;
-								}
-								else {
-									std::cout << "Incorrect!" << std::endl;
-									std::cout << inputText + " - " + secretWord + "-"
-										<< std::endl;
-								}
+								CheckCurrentTry(inputText, secretWord, isWordCorrect);
+
 								sf::Text newMessage(">> " + inputText, font.font, font.size);
 								sf::Vector2f newPosition = GetNewPosition();
 								newMessage.setPosition(newPosition);
 								newMessage.setColor(green);
 								text.setPosition(GetNewPosition());
 
-								sf::Packet packetWithWord;
-								packetWithWord << inputText << isWordCorrect;
-								if (socket.send(packetWithWord) == sf::Socket::Done) {
-									std::cout << "Packet Send : " << inputText << std::endl;
-									isWaitingForTurn = true;
-								}
+								SendData(socket, inputText, isWordCorrect, isWaitingForTurn);
 								inputText = "";
 								text.setString(">> " + inputText);
 								isGuesser = false;
 							}
 							else {
 								if (inputText == secretWord) {
-									inputText = "random";  // TODO
+									int worldSelected = randomRange(0, 5);
+									inputText = randomWord[worldSelected];
+									//inputText = "random";  // TODO
 								}
 								sf::Text newMessage("<< " + inputText, font.font, font.size);
 								sf::Vector2f newPosition = GetNewPosition();
@@ -143,12 +194,7 @@ int main() {
 
 								isGuesser = true;
 
-								sf::Packet packetWithWord;
-								packetWithWord << inputText << isWordCorrect;
-								if (socket.send(packetWithWord) == sf::Socket::Done) {
-									std::cout << "Packet Send : " << inputText << std::endl;
-									isWaitingForTurn = true;
-								}
+								SendData(socket, inputText, isWordCorrect, isWaitingForTurn);
 								inputText = "";
 								text.setString(">> " + inputText);
 							}
@@ -160,14 +206,7 @@ int main() {
 						text.setString("<< " + inputText);
 
 						if (sender) {
-							std::cout << "enter Sending" << std::endl;
-							sf::Packet packet;
-							packet << secretWord;
-							if (socket.send(packet) == sf::Socket::Done) {
-								std::cout << "Packet Send" << std::endl;
-								current_state = GameState::FindingWord;
-							}
-							std::cout << "End " << std::endl;
+							SendSecretWord(socket, secretWord, current_state);
 						}
 					}
 				}
@@ -200,7 +239,7 @@ int main() {
 		if (current_state == WinOrLoose) {
 			if (isWordCorrect)
 			{
-				text.setString("YOU WIN");
+				text.setString("Good Job");
 				text.setColor(green);
 			}
 			else
@@ -222,7 +261,7 @@ int main() {
 				sf::Text tuto_text("", font.font, font.size);
 				tuto_text.setPosition(firstMessagePosition);
 				tuto_text.setColor(green);
-				tuto_text.setString(">> Enter the Word you want to be found: ");
+				tuto_text.setString(">> Enter the word you want P2 to find: ");
 				sf::Vector2f offsetSecretWord = sf::Vector2f(20.0f, 40.0f);
 				text.setPosition(firstMessagePosition + offsetSecretWord);
 				window.draw(text);
@@ -232,7 +271,7 @@ int main() {
 				sf::Text tuto_text("", font.font, font.size);
 				tuto_text.setPosition(firstMessagePosition);
 				tuto_text.setColor(green);
-				tuto_text.setString(">> Waiting For Transmission...");
+				tuto_text.setString(">> Waiting For P1 Transmission...");
 				window.draw(tuto_text);
 			}
 
@@ -240,14 +279,14 @@ int main() {
 		}
 		else {
 			bool isFirstColorGreen = isGuesser ? false : true;
-			for (int i = 1; i < messagess.size(); i++) {
+			for (int i = 1; i < messagesHistory.size(); i++) {
 				sf::Text messageText("", font.font, font.size);
 				if (isFirstColorGreen) {
-					messageText.setString("  >> " + messagess[i]);
+					messageText.setString("  >> " + messagesHistory[i]);
 					messageText.setColor(green);
 				}
 				else {
-					messageText.setString("  << " + messagess[i]);
+					messageText.setString("  << " + messagesHistory[i]);
 					messageText.setColor(orange);
 				}
 				messageText.setPosition(GetPositionStr(i));
@@ -258,19 +297,20 @@ int main() {
 			window.draw(text);
 
 			if (isPlayerTurn) {
-				sf::Text Info("Your turn ", font.font, font.size);
+				sf::Text Info("//Send something.. ", font.font, font.size);
 				Info.setPosition(firstMessagePosition);
 				Info.setColor(green);
 				window.draw(Info);
 			}
 			else {
-				sf::Text Info("Waiting transmission ", font.font, font.size);
+				sf::Text Info("//Waiting transmission.. ", font.font, font.size);
 				Info.setPosition(firstMessagePosition);
 				Info.setColor(green);
 				window.draw(Info);
 			}
 		}
 
+		window.draw(spritePC);
 		window.display();
 
 		if (current_state == SetSecretWord) {
@@ -303,7 +343,7 @@ int main() {
 					newMessage.setColor(orange);
 					newMessage.setString(wordReceived);
 					messages.push_back(newMessage);
-					messagess.push_back(wordReceived);
+					messagesHistory.push_back(wordReceived);
 					isWaitingForTurn = false;
 				}
 
