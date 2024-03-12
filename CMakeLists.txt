@@ -4,6 +4,12 @@ project(MiniGame)
 set (CMAKE_CXX_STANDARD 20)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(PORT "12000" CACHE STRING "Set the port")
+set(HOST_NAME "localhost" CACHE STRING "Set the host name")
+
+add_definitions("-DPORT=${PORT}")
+add_definitions("-DHOST_NAME=\"${HOST_NAME}\"")
+
 find_package(SFML COMPONENTS system network graphics CONFIG REQUIRED)
 
 add_executable(client client.cpp)

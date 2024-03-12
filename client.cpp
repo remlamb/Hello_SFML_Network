@@ -61,7 +61,7 @@ int main() {
   int currentTurn = 0;
   std::string wordReceived;
   sf::TcpSocket socket;
-  sf::Socket::Status status = socket.connect("localhost", 12000);
+  sf::Socket::Status status = socket.connect(HOST_NAME, PORT);
   if (status != sf::Socket::Done) {
     // error
     std::cerr << "Could not connect to server ! \n";
