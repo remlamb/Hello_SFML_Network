@@ -58,6 +58,7 @@ int main() {
   bool isWaitingForTurn = true;
   bool isPlayerTurn = true;
   bool isWordCorrect = false;
+  int currentTurn = 0;
   std::string wordReceived;
   sf::TcpSocket socket;
   sf::Socket::Status status = socket.connect("localhost", 12000);
@@ -194,8 +195,17 @@ int main() {
     window.clear();
 
     if (current_state == WinOrLoose) {
-      text.setString("YOU WIN");
-      text.setColor(green);
+        if(isWordCorrect)
+        {
+            text.setString("YOU WIN");
+            text.setColor(green);
+        }
+        else
+        {
+            text.setString("FAILED");
+            text.setColor(orange);
+        }
+      
       text.setPosition(
           sf::Vector2f(window.getSize().x * 0.5, window.getSize().y * 0.5));
       text.setCharacterSize(40);
@@ -275,7 +285,7 @@ int main() {
         sf::Packet turnPacket;
         if (socket.receive(turnPacket) == sf::Socket::Done) {
           turnPacket >> isPlayerTurn >> wordReceived >> isGuesser >>
-              isWordCorrect;
+              isWordCorrect >> currentTurn;
           std::cout << "received  : " << isPlayerTurn
                     << " Word : " << wordReceived << std::endl;
 
@@ -293,7 +303,7 @@ int main() {
           isWaitingForTurn = true;
         }
 
-        if (isWordCorrect) {
+        if (isWordCorrect || currentTurn >= 20) {
           current_state = WinOrLoose;
         }
       }
