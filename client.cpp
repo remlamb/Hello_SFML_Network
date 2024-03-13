@@ -53,6 +53,13 @@ static const sf::Color orange(255, 175, 64);
   return true;
 }
 
+[[nodiscard]] std::string toLower(const std::string& str) {
+  std::string result = str;
+  std::transform(result.begin(), result.end(), result.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return result;
+}
+
 class Game {
  public:
   bool isWaitingForTurn = true;
@@ -60,14 +67,14 @@ class Game {
   bool isWordCorrect = false;
   int currentTurn = 0;
   bool isGuesser = false;
-  bool sender = false;
-  std::string wordReceived = "";
+  bool isSender = false;
+  std::string wordReceived;
   sf::TcpSocket socket;
   GameState current_state = SetSecretWord;
   std::string secretWord = "secret";
-  std::string inputText = "";
-  std::array<std::string, 6> randomWord = {"Oui",     "Chien", "SFML_Classic",
-                                           "Galaxy_", "rouge", "random"};
+  std::string userInput;
+  std::array<std::string, 6> randomWords = {"Oui",   "Chien", "SFML_Classic",
+                                            "reel_", "rouge", "random"};
   sf::Sprite spritePC;
   sf::Texture texturePC;
   sf::Packet packet;
@@ -86,22 +93,22 @@ class Game {
     isWordCorrect = false;
     currentTurn = 0;
     isGuesser = false;
-    sender = false;
+    isSender = false;
     wordReceived = "";
     current_state = SetSecretWord;
     secretWord = "secret";
-    inputText = "";
+    userInput = "";
     texturePC = sf::Texture();
     font = Font();
   }
 
-  sf::Vector2f GetNewPosition() {
+  sf::Vector2f GetNewPosition() const noexcept {
     return firstMessagePosition +
            sf::Vector2f(0.0f,
                         static_cast<float>(messages.size()) * marginYText);
   }
 
-  sf::Vector2f GetPositionStr(int i) {
+  sf::Vector2f GetPositionStr(const int i) const noexcept {
     return firstMessagePosition +
            sf::Vector2f(0.0f, static_cast<float>(i) * marginYText);
   }
@@ -117,17 +124,18 @@ class Game {
   void ReceiveRole() {
     sf::Packet packet;
     if (socket.receive(packet) != sf::Socket::Done) {
-      std::cerr << "Failed to receive sender flag from server" << std::endl;
+      std::cerr << "Failed to receive isSender flag from server" << std::endl;
       // return EXIT_FAILURE;
     }
-    packet >> sender;
-    std::cout << "Received sender flag from server: " << std::boolalpha
-              << sender << std::endl;
+    packet >> isSender;
+    std::cout << "Received isSender flag from server: " << std::boolalpha
+              << isSender << std::endl;
   }
 
   void CheckCurrentTry() {
     std::cout << "Message Entered" << std::endl;
-    if (inputText == secretWord) {
+    userInput = toLower(userInput);
+    if (userInput == secretWord) {
       std::cout << "Correct!" << std::endl;
       isWordCorrect = true;
       // current_state = GameState::WinOrLoose;
@@ -138,7 +146,8 @@ class Game {
 
   void SendData() {
     sf::Packet packetWithWord;
-    packetWithWord << inputText << isWordCorrect;
+    userInput = toLower(userInput);
+    packetWithWord << userInput << isWordCorrect;
     if (socket.send(packetWithWord) == sf::Socket::Done) {
       std::cout << "Packet Send : " << std::endl;
       isWaitingForTurn = true;
@@ -155,7 +164,7 @@ class Game {
     std::cout << "End " << std::endl;
   }
 
-  void SetUp() {
+  void SetUp() noexcept {
     if (!texturePC.loadFromFile("../PCScreen.png")) {
       std::cerr << "Failed Loading Texture\n";
     }
@@ -170,9 +179,9 @@ class Game {
     text.setCharacterSize(font.size);
     message_send_draw.setPosition(firstMessagePosition);
     text.setPosition(firstMessagePosition);
-    text.setString("<< " + inputText);
+    text.setString("<< " + userInput);
 
-    window.create({800u, 600u}, "Turn Based Mini Game", sf::Style::Close);
+    window.create({800u, 600u}, "Turn Based Mini Game", sf::Style::None);
     window.setFramerateLimit(60);
   }
 
@@ -188,23 +197,24 @@ class Game {
               if (isGuesser) {
                 CheckCurrentTry();
 
-                sf::Text newMessage(">> " + inputText, font.font, font.size);
+                sf::Text newMessage(">> " + userInput, font.font, font.size);
                 sf::Vector2f newPosition = GetNewPosition();
                 newMessage.setPosition(newPosition);
                 newMessage.setColor(green);
                 text.setPosition(GetNewPosition());
 
                 SendData();
-                inputText = "";
-                text.setString(">> " + inputText);
+                userInput = "";
+                text.setString(">> " + userInput);
                 isGuesser = false;
               } else {
-                if (inputText == secretWord) {
+                userInput = toLower(userInput);
+                if (userInput == secretWord) {
                   int worldSelected = randomRange(0, 5);
-                  inputText = randomWord[worldSelected];
-                  // inputText = "random";  // TODO
+                  userInput = randomWords[worldSelected];
+                  // userInput = "random";  // TODO
                 }
-                sf::Text newMessage("<< " + inputText, font.font, font.size);
+                sf::Text newMessage("<< " + userInput, font.font, font.size);
                 sf::Vector2f newPosition = GetNewPosition();
                 newMessage.setPosition(newPosition);
                 newMessage.setColor(orange);
@@ -213,17 +223,18 @@ class Game {
                 isGuesser = true;
 
                 SendData();
-                inputText = "";
-                text.setString(">> " + inputText);
+                userInput = "";
+                text.setString(">> " + userInput);
               }
             }
           }
           if (current_state == GameState::SetSecretWord) {
-            secretWord = inputText;
-            inputText = "";
-            text.setString("<< " + inputText);
+            secretWord = userInput;
+            secretWord = toLower(secretWord);
+            userInput = "";
+            text.setString("<< " + userInput);
 
-            if (sender) {
+            if (isSender) {
               SendSecretWord();
             }
           }
@@ -234,16 +245,16 @@ class Game {
           if (isPlayerTurn) {
             text.setPosition(GetNewPosition());
             if (event.text.unicode < 128 && event.text.unicode > 32) {
-              inputText += static_cast<char>(event.text.unicode);
-              text.setString("<< " + inputText);
+              userInput += static_cast<char>(event.text.unicode);
+              text.setString("<< " + userInput);
             } else if (event.text.unicode == 32) {
-              inputText += '_';
-              text.setString("<< " + inputText);
+              userInput += '_';
+              text.setString("<< " + userInput);
             } else if (event.text.unicode == 8) {
-              if (!inputText.empty()) {
-                inputText.pop_back();
+              if (!userInput.empty()) {
+                userInput.pop_back();
               }
-              text.setString("<< " + inputText);
+              text.setString("<< " + userInput);
             }
           }
         }
@@ -270,7 +281,7 @@ class Game {
                      textRect.top + textRect.height * 0.5f);
       window.draw(text);
     } else if (current_state == SetSecretWord) {
-      if (sender) {
+      if (isSender) {
         sf::Text tuto_text("", font.font, font.size);
         tuto_text.setPosition(firstMessagePosition);
         tuto_text.setColor(green);
@@ -324,7 +335,7 @@ class Game {
 
     if (current_state == SetSecretWord) {
       // Waiting For the word
-      if (!sender) {
+      if (!isSender) {
         std::cout << "Waiting for Word" << std::endl;
         std::string receivedWord;
         if (socket.receive(packet) == sf::Socket::Done) {
@@ -344,7 +355,7 @@ class Game {
               isWordCorrect >> currentTurn;
           std::cout << "received  : " << isPlayerTurn << " Word" << std::endl;
 
-          sf::Text newMessage("<< " + inputText, font.font, font.size);
+          sf::Text newMessage("<< " + userInput, font.font, font.size);
           sf::Vector2f newPosition = GetNewPosition();
           newMessage.setPosition(newPosition);
           newMessage.setColor(orange);
