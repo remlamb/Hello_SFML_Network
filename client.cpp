@@ -30,17 +30,18 @@ struct Font {
   void SetSize(int size) { this->size = size; }
 };
 
-static sf::Color green(0.0f, 255.0f, 102.0f);
-static sf::Color orange(255, 175, 64);
+static const sf::Color green(0.0f, 255.0f, 102.0f);
+static const sf::Color orange(255, 175, 64);
 
-int randomRange(int min, int max) {
+[[nodiscard]] int randomRange(int min, int max) noexcept {
   std::random_device rd;
   std::mt19937 eng(rd());
   std::uniform_int_distribution<> distr(min, max);
   return distr(eng);
 }
 
-bool CompareString(std::string str1, std::string str2) {
+[[nodiscard]] bool CompareString(const std::string& str1,
+                                 const std::string& str2) noexcept {
   if (str1.size() != str2.size()) {
     return false;
   }
@@ -132,7 +133,6 @@ class Game {
       // current_state = GameState::WinOrLoose;
     } else {
       std::cout << "Incorrect!" << std::endl;
-      std::cout << inputText + " - " + secretWord + "-" << std::endl;
     }
   }
 
