@@ -2,13 +2,8 @@
 #include <array>
 #include <iostream>
 
+#include "gameNetwork.h"
 #include "message.h"
-
-enum class GameState {
-  SetSecretWord,
-  FindingWord,
-  WinOrLoose,
-};
 
 void acceptClient(sf::TcpListener& listener, sf::TcpSocket& socket) {
   if (listener.accept(socket) != sf::Socket::Done) {
@@ -55,6 +50,7 @@ int main() {
   bool isPlayerTurn = true;
   std::array<sf::TcpSocket, 2> clients;
   sf::TcpListener listener;
+  std::string wordToFind;
 
   if (listener.listen(PORT) != sf::Socket::Done) {
     std::cerr << "Could not listen to port \n";
@@ -87,7 +83,7 @@ int main() {
         }
 
         std::cout << "Waiting for word to find from client" << std::endl;
-        std::string wordToFind;
+
         sf::Packet secretWordPacket;
         if (clients[0].receive(secretWordPacket) == sf::Socket::Done) {
           secretWordPacket >> wordToFind;
