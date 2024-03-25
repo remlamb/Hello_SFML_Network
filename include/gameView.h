@@ -1,6 +1,8 @@
 #pragma once
-#include "gameLogic.h"
+#include <imgui.h>
+#include "imgui-SFML.h"
 #include <random>
+#include "gameLogic.h"
 
 class GameView {
   // TODO class color -> constexpr

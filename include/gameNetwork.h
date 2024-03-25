@@ -5,6 +5,7 @@
 #include "common.h"
 
 enum class GameState {
+  JoinLobby,
   SetSecretWord,
   FindingWord,
   WinOrLoose,

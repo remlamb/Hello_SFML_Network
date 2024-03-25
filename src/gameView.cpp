@@ -23,11 +23,13 @@ void GameView::Init() {
 
   window.create({800u, 600u}, "Turn Based Mini GameLogic", sf::Style::None);
   window.setFramerateLimit(60);
+  ImGui::SFML::Init(window);
   game_logic_.Init();
 }
 
 void GameView::ManageEvent() {
   for (auto event = sf::Event{}; window.pollEvent(event);) {
+    ImGui::SFML::ProcessEvent(event);
     if (event.type == sf::Event::Closed) {
       window.close();
     }
@@ -42,8 +44,18 @@ void GameView::ManageEvent() {
 void GameView::Update() {
   while (window.isOpen()) {
     ManageEvent();
+    // Render your SFML content here
+    ImGui::SFML::Update(window, sf::seconds(1.0f / 60.0f));
+
+    // ImGui widgets go here
+    ImGui::Begin("Menu");
+    if (ImGui::Button("Connect to Server")) {
+       game_logic_.game_network.ConnectToServer();
+    }
+    ImGui::End();
     Render();
   }
+  ImGui::SFML::Shutdown();
 }
 
 void GameView::Render() {
@@ -119,13 +131,12 @@ void GameView::Render() {
   }
 
   window.draw(spritePC);
+  ImGui::SFML::Render(window);
   window.display();
 
   if (game_logic_.currentState == GameState::SetSecretWord) {
     // Waiting For the word
     if (!game_logic_.isSender) {
-      std::cout << "Waiting for Word" << std::endl;
-      game_logic_.secretWord = game_logic_.game_network.ReceiveSecretWord();
       game_logic_.currentState = GameState::FindingWord;
     }
   }
