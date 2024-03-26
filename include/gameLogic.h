@@ -1,9 +1,10 @@
 #pragma once
-#include "gameNetwork.h"
 #include <SFML/Graphics.hpp>
 #include <SFML/Network.hpp>
-#include <iostream>
 #include <array>
+#include <iostream>
+
+#include "gameNetwork.h"
 
 class GameLogic {
  public:
@@ -24,7 +25,7 @@ class GameLogic {
 
   GameLogic();
   void Init() noexcept;
-  void Update(){};
   void CheckCurrentTry();
   void ManageEvent(sf::Event event);
+  void Update();
 };

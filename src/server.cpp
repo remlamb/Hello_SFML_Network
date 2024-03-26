@@ -1,5 +1,6 @@
 #include <SFML/Network.hpp>
 #include <array>
+#include <vector>
 #include <iostream>
 
 #include "gameNetwork.h"
@@ -7,7 +8,7 @@
 
 class Server {
  public:
-  GameState currentState = GameState::SetSecretWord;
+  GameState currentState = GameState::JoinLobby;
   std::string currentGuess = "";
   int connectedPlayers = 0;
   int turn = 0;
@@ -74,40 +75,42 @@ class Server {
     std::cout << "Server running ! \n";
 
     while (true) {
-      if (currentState == GameState::SetSecretWord) {
-        if (connectedPlayers < 2) {
-          acceptClient(connectedPlayers);
-          connectedPlayers++;
+      if (connectedPlayers < 2) {
+        acceptClient(connectedPlayers);
+        connectedPlayers++;
+      }
+
+      if (connectedPlayers > 1) {
+        std::cout << "Player Log in";
+        sf::Packet role;
+        isSender = true;
+        role << isSender;
+        if (clients[0].send(role) != sf::Socket::Done) {
+          std::cerr << "Failed to send sender flag to client \n";
+          // return EXIT_FAILURE;
         }
 
-        if (connectedPlayers > 1) {
-          sf::Packet role;
-          isSender = true;
-          role << isSender;
-          if (clients[0].send(role) != sf::Socket::Done) {
-            std::cerr << "Failed to send sender flag to client \n";
-            // return EXIT_FAILURE;
-          }
+        isSender = false;
+        role.clear();
+        role << isSender;
+        if (clients[1].send(role) != sf::Socket::Done) {
+          std::cerr << "Failed to send sender flag to client \n";
+          // return EXIT_FAILURE;
+        }
+        currentState = GameState::SetSecretWord;
+      }
 
-          isSender = false;
-          role.clear();
-          role << isSender;
-          if (clients[1].send(role) != sf::Socket::Done) {
-            std::cerr << "Failed to send sender flag to client \n";
-            // return EXIT_FAILURE;
-          }
+      if (currentState == GameState::SetSecretWord) {
+        std::cout << "Waiting for word to find from client" << std::endl;
 
-          std::cout << "Waiting for word to find from client" << std::endl;
-
-          sf::Packet secretWordPacket;
-          if (clients[0].receive(secretWordPacket) == sf::Socket::Done) {
-            secretWordPacket >> wordToFind;
-            currentState = GameState::FindingWord;
-            std::cout << "Word to find: " << wordToFind << std::endl;
-          } else {
-            std::cerr << "Failed to receive word to find from client \n";
-            // return EXIT_FAILURE;
-          }
+        sf::Packet secretWordPacket;
+        if (clients[0].receive(secretWordPacket) == sf::Socket::Done) {
+          secretWordPacket >> wordToFind;
+          currentState = GameState::FindingWord;
+          std::cout << "Word to find: " << wordToFind << std::endl;
+        } else {
+          std::cerr << "Failed to receive word to find from client \n";
+          // return EXIT_FAILURE;
         }
       }
 
@@ -135,6 +138,11 @@ class Server {
       }
     }
   }
+};
+
+class Lobby
+{
+	
 };
 
 int main() {

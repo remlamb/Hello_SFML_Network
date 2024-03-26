@@ -42,6 +42,7 @@ void GameView::ManageEvent() {
 }
 
 void GameView::Update() {
+  game_logic_.Update();
   while (window.isOpen()) {
     ManageEvent();
     // Render your SFML content here
@@ -50,7 +51,9 @@ void GameView::Update() {
     // ImGui widgets go here
     ImGui::Begin("Menu");
     if (ImGui::Button("Connect to Server")) {
-       game_logic_.game_network.ConnectToServer();
+      game_logic_.game_network.ConnectToServer();
+      game_logic_.isSender = game_logic_.game_network.ReceiveRole();
+      game_logic_.currentState = GameState::SetSecretWord;
     }
     ImGui::End();
     Render();
@@ -77,7 +80,9 @@ void GameView::Render() {
     text.setOrigin(textRect.left + textRect.width * 0.5f,
                    textRect.top + textRect.height * 0.5f);
     window.draw(text);
-  } else if (game_logic_.currentState == GameState::SetSecretWord) {
+  }
+
+  else if (game_logic_.currentState == GameState::SetSecretWord) {
     if (game_logic_.isSender) {
       sf::Text tuto_text("", font);
       tuto_text.setPosition(firstMessagePosition);
@@ -98,7 +103,9 @@ void GameView::Render() {
     }
 
     text.setPosition(firstMessagePosition);
-  } else {
+  }
+
+  else if (game_logic_.currentState == GameState::FindingWord) {
     text.setCharacterSize(20);
     bool isFirstColorGreen = game_logic_.isGuesser ? false : true;
     for (int i = 1; i < messagesHistory.size(); i++) {
@@ -131,11 +138,14 @@ void GameView::Render() {
   }
 
   window.draw(spritePC);
-  ImGui::SFML::Render(window);
+
+  if (game_logic_.currentState == GameState::JoinLobby) {
+    ImGui::SFML::Render(window);
+  }
+
   window.display();
 
   if (game_logic_.currentState == GameState::SetSecretWord) {
-    // Waiting For the word
     if (!game_logic_.isSender) {
       game_logic_.currentState = GameState::FindingWord;
     }

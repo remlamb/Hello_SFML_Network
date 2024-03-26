@@ -8,14 +8,14 @@ GameLogic::GameLogic() {
   isGuesser = false;
   isSender = false;
   wordReceived = "";
-  currentState = GameState::SetSecretWord;
+  currentState = GameState::JoinLobby;
   secretWord = "secret";
   userInput = "";
 }
 
 void GameLogic::Init() noexcept {
-  game_network.ConnectToServer();
-  isSender = game_network.ReceiveRole();
+  //game_network.ConnectToServer();
+  //isSender = game_network.ReceiveRole();
   isGuesser = false;
 }
 
@@ -81,4 +81,9 @@ void GameLogic::ManageEvent(sf::Event event) {
       }
     }
   }
+}
+
+void GameLogic::Update()
+{
+
 }
