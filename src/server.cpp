@@ -1,7 +1,8 @@
 #include <SFML/Network.hpp>
 #include <array>
-#include <vector>
 #include <iostream>
+#include <queue>
+#include <vector>
 
 #include "gameNetwork.h"
 #include "message.h"
@@ -17,7 +18,7 @@ class Server {
   bool isWin = false;
   bool isPlayerOneTurn = true;
   bool isPlayerTurn = true;
-  std::array<sf::TcpSocket, 2> clients;
+  std::array<sf::TcpSocket*, 2> clients{};
   sf::TcpListener listener;
   std::string wordToFind;
 
@@ -26,21 +27,37 @@ class Server {
     isSender = true;
   }
 
-  void acceptClient(int socketSelector) {
-    if (listener.accept(clients[socketSelector]) != sf::Socket::Done) {
-      std::cerr << "Could not accept client \n";
-      exit(EXIT_FAILURE);
-    } else {
-      std::cout << "Client connected: "
-                << clients[socketSelector].getRemoteAddress() << ':'
-                << clients[socketSelector].getRemotePort() << std::endl;
+  Server(const Server& other)
+      : currentState(other.currentState),
+        currentGuess(other.currentGuess),
+        connectedPlayers(other.connectedPlayers),
+        turn(other.turn),
+        turnMax(other.turnMax),
+        isSender(other.isSender),
+        isWin(other.isWin),
+        isPlayerOneTurn(other.isPlayerOneTurn),
+        isPlayerTurn(other.isPlayerTurn),
+        clients{other.clients},
+        wordToFind(other.wordToFind) {
+    for (size_t i = 0; i < 2; ++i) {
+      if (other.clients[i] != nullptr) {
+        clients[i] = other.clients[i];
+      } else {
+        clients[i] = nullptr;
+      }
+    }
+  }
+
+  ~Server() {
+    for (size_t i = 0; i < 2; ++i) {
+      delete clients[i];
     }
   }
 
   void sendGameData(int socketSelector, bool playerRole) {
     sf::Packet packet;
     packet << isPlayerTurn << currentGuess << playerRole << isWin << turn;
-    if (clients[socketSelector].send(packet) == sf::Socket::Done) {
+    if (clients[socketSelector]->send(packet) == sf::Socket::Done) {
       std::cout << " Send for p1 : ";
       std::cout << isPlayerTurn << " Current guess: " << currentGuess
                 << std::endl;
@@ -51,7 +68,7 @@ class Server {
 
   void receiveGuess(int socketSelector) {
     sf::Packet packet;
-    if (clients[socketSelector].receive(packet) == sf::Socket::Done) {
+    if (clients[socketSelector]->receive(packet) == sf::Socket::Done) {
       packet >> currentGuess >> isWin;
       std::cout << "Received guess : " << currentGuess << std::endl;
     }
@@ -68,49 +85,35 @@ class Server {
   }
 
   void Run() {
-    if (listener.listen(PORT) != sf::Socket::Done) {
-      std::cerr << "Could not listen to port \n";
-      // return EXIT_FAILURE;
-    }
-    std::cout << "Server running ! \n";
-
-    while (true) {
-      if (connectedPlayers < 2) {
-        acceptClient(connectedPlayers);
-        connectedPlayers++;
+    //while (true) {
+      std::cout << "Player Log in";
+      sf::Packet role;
+      isSender = true;
+      role << isSender;
+      if (clients[0]->send(role) != sf::Socket::Done) {
+        std::cerr << "Failed to send sender flag to client \n";
+        // return EXIT_FAILURE;
       }
 
-      if (connectedPlayers > 1) {
-        std::cout << "Player Log in";
-        sf::Packet role;
-        isSender = true;
-        role << isSender;
-        if (clients[0].send(role) != sf::Socket::Done) {
-          std::cerr << "Failed to send sender flag to client \n";
-          // return EXIT_FAILURE;
-        }
-
-        isSender = false;
-        role.clear();
-        role << isSender;
-        if (clients[1].send(role) != sf::Socket::Done) {
-          std::cerr << "Failed to send sender flag to client \n";
-          // return EXIT_FAILURE;
-        }
-        currentState = GameState::SetSecretWord;
+      isSender = false;
+      role.clear();
+      role << isSender;
+      if (clients[1]->send(role) != sf::Socket::Done) {
+        std::cerr << "Failed to send sender flag to client \n";
+        // return EXIT_FAILURE;
       }
+      currentState = GameState::SetSecretWord;
 
       if (currentState == GameState::SetSecretWord) {
         std::cout << "Waiting for word to find from client" << std::endl;
 
         sf::Packet secretWordPacket;
-        if (clients[0].receive(secretWordPacket) == sf::Socket::Done) {
+        if (clients[0]->receive(secretWordPacket) == sf::Socket::Done) {
           secretWordPacket >> wordToFind;
           currentState = GameState::FindingWord;
           std::cout << "Word to find: " << wordToFind << std::endl;
         } else {
           std::cerr << "Failed to receive word to find from client \n";
-          // return EXIT_FAILURE;
         }
       }
 
@@ -137,15 +140,70 @@ class Server {
         }
       }
     }
+  //}
+};
+
+class Lobby {
+ public:
+  std::queue<sf::TcpSocket*> clients{};
+  std::vector<Server*> games{};
+  sf::TcpListener listener;
+  int GameCounter = 0;
+
+  void Init() {
+    clients.empty();
+    games.clear();
+  }
+
+  void ListenToPort() {
+    if (listener.listen(PORT) != sf::Socket::Done) {
+      std::cerr << "Could not listen to port \n";
+    }
+    std::cout << "Server running ! \n";
+  }
+
+  void AcceptClient() {
+    sf::TcpSocket* newClient = new sf::TcpSocket;
+    if (listener.accept(*newClient) == sf::Socket::Done) {
+      std::cout << "Client connected: " << newClient->getRemoteAddress() << ':'
+                << newClient->getRemotePort() << std::endl;
+      clients.push(newClient);
+    } else {
+      delete newClient;
+      std::cerr << "Could not accept client" << std::endl;
+    }
+  }
+
+  void AddGame() {
+    if (clients.size() >= 2) {
+      Server* serv = new Server();
+      serv->clients[0] = clients.front();
+      clients.pop();
+      serv->clients[1] = clients.front();
+      clients.pop();
+      games.push_back(serv);
+    }
+  }
+
+  void Run() {
+    ListenToPort();
+
+    while (true) {
+      AcceptClient();
+      AddGame();
+      for (auto& game : games) {
+        game->Run();
+      }
+    }
   }
 };
 
-class Lobby
-{
-	
-};
-
 int main() {
-  Server server;
-  server.Run();
+  // Server server;
+  // server.Run();
+
+  Lobby lobby;
+  lobby.Init();
+  lobby.Run();
+  return 0;
 }
