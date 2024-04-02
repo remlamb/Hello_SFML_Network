@@ -1,7 +1,9 @@
+#include <SFML/Network.hpp>
 #include "gameView.h"
 
+GameView game;
+
 int main() {
-  GameView game;
   game.Init();
   game.Update();
 }

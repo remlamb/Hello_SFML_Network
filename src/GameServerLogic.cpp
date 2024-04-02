@@ -30,7 +30,15 @@ void GameServerLogic::CheckCurrentGuess() {
   }
 }
 
-void GameServerLogic::Run() {
+void GameServerLogic::AddPlayer(sf::TcpSocket* player) {
+  if (clients[0] == nullptr) {
+    clients[0] = player;
+  } else {
+    clients[1] = player;
+  }
+}
+
+void GameServerLogic::Update() {
   std::cout << "Player Log in";
   sf::Packet role;
   isSender = true;

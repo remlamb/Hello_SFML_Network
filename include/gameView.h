@@ -1,10 +1,13 @@
 #pragma once
 #include <imgui.h>
-#include "imgui-SFML.h"
+
 #include <random>
+
 #include "gameLogic.h"
+#include "imgui-SFML.h"
 
 class GameView {
+ public:
   // TODO class color -> constexpr
   const sf::Color green = sf::Color(0.0f, 255.0f, 102.0f);
   const sf::Color orange = sf::Color(255, 175, 64);

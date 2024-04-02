@@ -5,7 +5,7 @@ GameLogic::GameLogic() {
   isPlayerTurn = true;
   isWordCorrect = false;
   currentTurn = 0;
-  isGuesser = false;
+  isGuesserTurn = false;
   isSender = false;
   wordReceived = "";
   currentState = GameState::JoinLobby;
@@ -14,9 +14,7 @@ GameLogic::GameLogic() {
 }
 
 void GameLogic::Init() noexcept {
-  //game_network.ConnectToServer();
-  //isSender = game_network.ReceiveRole();
-  isGuesser = false;
+  isGuesserTurn = false;
 }
 
 void GameLogic::CheckCurrentTry() {
@@ -30,43 +28,47 @@ void GameLogic::CheckCurrentTry() {
   }
 }
 
-void GameLogic::ManageEvent(sf::Event event) {
+void GameLogic::OnEvent(sf::Event event) {
   if (event.type == sf::Event::KeyPressed) {
+    if (isWaitingForTurn) {
+      return;
+    }
     if (event.key.code == sf::Keyboard::Enter) {
       if (currentState == GameState::FindingWord) {
-        // if (waiting..) continue
-        if (!isWaitingForTurn) {
-          if (isGuesser) {
-            CheckCurrentTry();
-            game_network.SendData(userInput, isWordCorrect);
-            isWaitingForTurn = true;
-            userInput = "";
-            isGuesser = false;
-          } else {
-            userInput = ToLower(userInput);
-            if (userInput == secretWord) {
-              int worldSelected = RandomRange(0, 5);
-              userInput = randomWords[worldSelected];
-            }
-            isGuesser = true;
-            game_network.SendData(userInput, isWordCorrect);
-            isWaitingForTurn = true;
-            userInput = "";
+        if (isGuesserTurn) {
+          userInput = ToLower(userInput);
+          game_network.SendData(userInput, isWaitingForTurn,
+                                      messagesHistory, currentState, isSender);
+          isWaitingForTurn = true;
+          userInput = "";
+          // isGuesserTurn = false;
+        } else {
+          userInput = ToLower(userInput);
+          if (userInput == secretWord) {
+            int worldSelected = RandomRange(0, 5);
+            userInput = randomWords[worldSelected];
           }
+          game_network.SendData(userInput, isWaitingForTurn,
+                                      messagesHistory, currentState, isSender);
+          // isGuesserTurn = true;
+          isWaitingForTurn = true;
+          userInput = "";
         }
       }
       if (currentState == GameState::SetSecretWord) {
-        secretWord = userInput;
-        secretWord = ToLower(secretWord);
+        secretWord = ToLower(userInput);
         userInput = "";
-        if (isSender) {
-          game_network.SendSecretWord(secretWord);
-          currentState = GameState::FindingWord;
-        }
+        game_network.SendData(secretWord, isWaitingForTurn,
+                                    messagesHistory, currentState, isSender);
+
+        currentState = GameState::FindingWord;
       }
     }
-
-  } else if (event.type == sf::Event::TextEntered) {
+  }
+  if (event.type == sf::Event::TextEntered) {
+    if (isWaitingForTurn) {
+      return;
+    }
     if (!isWaitingForTurn || currentState == GameState::SetSecretWord) {
       if (isPlayerTurn) {
         if (event.text.unicode < 128 && event.text.unicode > 32) {
@@ -83,7 +85,31 @@ void GameLogic::ManageEvent(sf::Event event) {
   }
 }
 
-void GameLogic::Update()
-{
+// TODO
+void GameLogic::Update() {
+  // std::cout << static_cast<int>(currentState) << std::endl;
+  if (currentState == GameState::SetSecretWord) {
+    if (!isSender) {
+      currentState = GameState::FindingWord;
+    }
+  }
 
+  if (currentState == GameState::FindingWord) {
+    if (isWaitingForTurn) {
+      game_network.ReceiveData(isWaitingForTurn, messagesHistory,
+                                     isWordCorrect);
+
+      if (isWordCorrect || currentTurn >= maxTurn) {
+        currentState = GameState::WinOrLoose;
+      }
+    }
+  }
+
+  if (currentState == GameState::WinOrLoose) {
+    if (isSender) {
+      game_network.SendData(secretWord, isWaitingForTurn, messagesHistory,
+                            currentState, isSender);
+    }
+    currentState = GameState::WinOrLoose;
+  }
 }

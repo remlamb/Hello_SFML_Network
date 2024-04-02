@@ -6,29 +6,36 @@
 #include "common.h"
 
 enum class GameState {
-  JoinLobby,
+  JoinLobby = 0,
   SetSecretWord,
   FindingWord,
   WinOrLoose,
 };
 
+struct GameData {
+  bool isPlayerTurn;
+  std::string lastWord;
+  bool isWin;
+};
+
 class GameNetwork {
  public:
   sf::TcpSocket socket;
+  bool roleReceived = false;
 
   GameNetwork() {}
 
   void ConnectToServer();
-
-  std::string ReceiveSecretWord();
-
   bool ReceiveRole();
+  void SendGameData(bool& isPlayerTurn, std::string& wordReceived,
+                    bool& isGuesser, bool& isWordCorrect, int& currentTurn);
+  void ReceiveGameData(bool& isPlayerTurn, std::string& wordReceived,
+                       bool& isGuesser, bool& isWordCorrect, int& currentTurn);
 
-  void SendData(std::string userInput, bool isWordCorrect);
+  void SendData(std::string secretWord, bool& isTurn,
+                      std::vector<std::string>& vector, GameState& state,
+                      bool& isGuesserTheSender);
 
-  // Doit etre coté serveur ne pas partager le secret word
-  void SendSecretWord(std::string secretWord);
-  // TODO Attention outparameter
-  void WaitingForTurn(bool& isPlayerTurn, std::string& wordReceived,
-                      bool& isGuesser, bool& isWordCorrect, int& currentTurn);
+  std::string ReceiveData(bool& IsTurn, std::vector<std::string>& vector,
+                                bool& isWin);
 };

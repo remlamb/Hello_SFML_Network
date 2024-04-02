@@ -1,6 +1,7 @@
 #pragma once
 #include <SFML/Network.hpp>
 #include <array>
+
 #include "gameNetwork.h"
 
 class GameServerLogic {
@@ -25,5 +26,7 @@ class GameServerLogic {
 
   void CheckCurrentGuess();
 
-  void Run();
+  void Update();
+
+  void AddPlayer(sf::TcpSocket* player);
 };

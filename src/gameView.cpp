@@ -21,7 +21,7 @@ void GameView::Init() {
   text.setPosition(firstMessagePosition);
   text.setString("<< " + game_logic_.userInput);
 
-  window.create({800u, 600u}, "Turn Based Mini GameLogic", sf::Style::None);
+  window.create({800u, 600u}, "Turn Based Mini GameLogic", sf::Style::Close);
   window.setFramerateLimit(60);
   ImGui::SFML::Init(window);
   game_logic_.Init();
@@ -33,7 +33,7 @@ void GameView::ManageEvent() {
     if (event.type == sf::Event::Closed) {
       window.close();
     }
-    game_logic_.ManageEvent(event);
+    game_logic_.OnEvent(event);
     if (game_logic_.isPlayerTurn) {
       text.setPosition(GetNewPosition());
       text.setString("<< " + game_logic_.userInput);
@@ -42,9 +42,9 @@ void GameView::ManageEvent() {
 }
 
 void GameView::Update() {
-  game_logic_.Update();
   while (window.isOpen()) {
     ManageEvent();
+    game_logic_.Update();
     // Render your SFML content here
     ImGui::SFML::Update(window, sf::seconds(1.0f / 60.0f));
 
@@ -53,10 +53,16 @@ void GameView::Update() {
     if (ImGui::Button("Connect to Server")) {
       game_logic_.game_network.ConnectToServer();
       game_logic_.isSender = game_logic_.game_network.ReceiveRole();
+      game_logic_.isWaitingForTurn = !game_logic_.isSender;
+      //std::cout << "Waiting for Turn: " << game_logic_.isWaitingForTurn
+      //          << std::endl;
       game_logic_.currentState = GameState::SetSecretWord;
     }
     ImGui::End();
     Render();
+    for (auto msg : game_logic_.messagesHistory) {
+      std::cout << msg;
+    }
   }
   ImGui::SFML::Shutdown();
 }
@@ -107,14 +113,14 @@ void GameView::Render() {
 
   else if (game_logic_.currentState == GameState::FindingWord) {
     text.setCharacterSize(20);
-    bool isFirstColorGreen = game_logic_.isGuesser ? false : true;
-    for (int i = 1; i < messagesHistory.size(); i++) {
+    bool isFirstColorGreen = game_logic_.isSender ? false : true;
+    for (int i = 1; i < game_logic_.messagesHistory.size(); i++) {
       sf::Text messageText("", font);
       if (isFirstColorGreen) {
-        messageText.setString("  >> " + messagesHistory[i]);
+        messageText.setString("  >> " + game_logic_.messagesHistory[i]);
         messageText.setColor(green);
       } else {
-        messageText.setString("  << " + messagesHistory[i]);
+        messageText.setString("  << " + game_logic_.messagesHistory[i]);
         messageText.setColor(orange);
       }
       messageText.setPosition(GetPositionStr(i));
@@ -124,7 +130,7 @@ void GameView::Render() {
     text.setPosition(GetNewPosition());
     window.draw(text);
 
-    if (game_logic_.isPlayerTurn) {
+    if (!game_logic_.isWaitingForTurn) {
       sf::Text Info("//Send something.. ", font);
       Info.setPosition(firstMessagePosition);
       Info.setColor(green);
@@ -144,36 +150,4 @@ void GameView::Render() {
   }
 
   window.display();
-
-  if (game_logic_.currentState == GameState::SetSecretWord) {
-    if (!game_logic_.isSender) {
-      game_logic_.currentState = GameState::FindingWord;
-    }
-  }
-
-  if (game_logic_.currentState == GameState::FindingWord) {
-    if (game_logic_.isWaitingForTurn) {
-      game_logic_.game_network.WaitingForTurn(
-          game_logic_.isPlayerTurn, game_logic_.wordReceived,
-          game_logic_.isGuesser, game_logic_.isWordCorrect,
-          game_logic_.currentTurn);
-      sf::Text newMessage("<< " + game_logic_.userInput, font);
-      sf::Vector2f newPosition = GetNewPosition();
-      newMessage.setPosition(newPosition);
-      newMessage.setColor(orange);
-      newMessage.setString(game_logic_.wordReceived);
-      messages.push_back(newMessage);
-      messagesHistory.push_back(game_logic_.wordReceived);
-      game_logic_.isWaitingForTurn = false;
-
-      if (!game_logic_.isPlayerTurn) {
-        game_logic_.isWaitingForTurn = true;
-      }
-
-      if (game_logic_.isWordCorrect ||
-          game_logic_.currentTurn >= game_logic_.maxTurn) {
-        game_logic_.currentState = GameState::WinOrLoose;
-      }
-    }
-  }
 }
